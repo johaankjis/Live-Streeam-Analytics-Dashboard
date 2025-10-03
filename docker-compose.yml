@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  # Next.js Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - POSTGRES_URL=${POSTGRES_URL}
+      - POSTGRES_PRISMA_URL=${POSTGRES_PRISMA_URL}
+      - DATABASE_URL_UNPOOLED=${DATABASE_URL_UNPOOLED}
+      - POSTGRES_URL_NON_POOLING=${POSTGRES_URL_NON_POOLING}
+    depends_on:
+      - postgres
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # PostgreSQL Database (for local development)
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=livestream
+      - POSTGRES_PASSWORD=livestream_password
+      - POSTGRES_DB=livestream_analytics
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts:/docker-entrypoint-initdb.d
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U livestream"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Nginx Reverse Proxy (optional)
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - app
+    networks:
+      - app-network
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+
+networks:
+  app-network:
+    driver: bridge
